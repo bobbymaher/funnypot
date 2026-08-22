@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Funnypot\App\Llm;
 
+use Funnypot\App\Render\PageShellRenderer;
+
 /**
  * Maps a request path's file extension to the shape of fake to synthesize. A real server answers a
  * .js with application/javascript, a .json with JSON, an .env with plaintext — wrapping all of them
@@ -31,10 +33,18 @@ final class LlmResponseProfiles
     /** @var array<string,LlmResponseProfile> keyed by kind */
     private array $byKind;
 
-    public function __construct(string $serverStack, string $htmlGrammar, string $jsonGrammar)
-    {
+    public function __construct(
+        string $serverStack,
+        string $htmlGrammar,
+        string $jsonGrammar,
+        ?PageShellRenderer $renderer = null,
+        string $pageSlotsGrammar = '',
+        string $company = 'Internal',
+    ) {
         $this->byKind = [
-            'html' => new LlmResponseProfile('html', 'text/html; charset=utf-8', LlmPromptBuilder::forHtml($serverStack), $htmlGrammar),
+            'html' => $renderer !== null
+                ? new LlmResponseProfile('html', 'text/html; charset=utf-8', LlmPromptBuilder::forHtmlSlots($serverStack, $company), $pageSlotsGrammar, $renderer)
+                : new LlmResponseProfile('html', 'text/html; charset=utf-8', LlmPromptBuilder::forHtml($serverStack), $htmlGrammar),
             'json' => new LlmResponseProfile('json', 'application/json', LlmPromptBuilder::forJson($serverStack), $jsonGrammar),
             'css' => new LlmResponseProfile('css', 'text/css; charset=utf-8', LlmPromptBuilder::forCss($serverStack), ''),
             'js' => new LlmResponseProfile('js', 'application/javascript', LlmPromptBuilder::forJs($serverStack), ''),

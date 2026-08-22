@@ -49,4 +49,21 @@ final class LlmResponseProfilesTest extends TestCase
             ['/static/js/app.js.bak', 'html', 'text/html; charset=utf-8'],  // only last segment ext (known limit)
         ];
     }
+
+    public function test_html_profile_gets_renderer_and_slots_grammar_when_provided(): void
+    {
+        $renderer = new \Funnypot\App\Render\PageShellRenderer(
+            new \Funnypot\App\Render\SkinSet([], new \Funnypot\App\Render\GenericSkin())
+        );
+        $profiles = new LlmResponseProfiles('nginx', 'root ::= "<"', 'root ::= "{"', $renderer, 'root ::= "{"', 'Velthora');
+        $html = $profiles->resolve('/hr/portal');
+        self::assertSame('text/html; charset=utf-8', $html->contentType);
+        self::assertNotNull($html->renderer);
+    }
+
+    public function test_html_profile_has_no_renderer_by_default(): void
+    {
+        $profiles = new LlmResponseProfiles('nginx', 'root ::= "<"', 'root ::= "{"');
+        self::assertNull($profiles->resolve('/hr/portal')->renderer);   // legacy path preserved
+    }
 }
