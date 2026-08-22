@@ -92,4 +92,21 @@ final class LlmPromptBuilderTest extends TestCase
             'text' => ['forPlaintext', 'raw file contents'],
         ];
     }
+
+    public function test_no_public_fingerprint_literals_in_any_prompt(): void
+    {
+        $banned = ['tok_9f3ac21e', 'ACME Portal', 'a.reyes', '9f3ac2'];
+        $builders = [
+            LlmPromptBuilder::forHtml('nginx'),
+            LlmPromptBuilder::forJson('nginx'),
+            LlmPromptBuilder::forJs('nginx'),
+            LlmPromptBuilder::forPlaintext('nginx'),
+        ];
+        foreach ($builders as $b) {
+            $prompt = $b->build('GET', '/x');
+            foreach ($banned as $needle) {
+                self::assertStringNotContainsString($needle, $prompt, "leaked fingerprint literal: {$needle}");
+            }
+        }
+    }
 }
