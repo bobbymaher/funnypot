@@ -83,22 +83,24 @@ final class WordpressSkin implements Skin
 
     private function css(): string
     {
+        // Palette reads as a WP-style admin scheme (blue primary, red error, blue-grey neutrals) but
+        // every hex is nudged off WordPress's exact default color-scheme tokens — resemblance, not reuse.
         return 'body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;'
-            . 'background:#f0f0f1;font-family:sans-serif;color:#3c434a}'
-            . '#login{width:320px;padding:26px 24px;background:#fff;border:1px solid #dcdcde;border-radius:4px;'
+            . 'background:#eeeff0;font-family:sans-serif;color:#393f47}'
+            . '#login{width:320px;padding:26px 24px;background:#fff;border:1px solid #d8d9db;border-radius:4px;'
             . 'box-shadow:0 1px 3px rgba(0,0,0,.08)}'
             . '#login h1{text-align:center;margin:0 0 20px}'
-            . '#login h1 a{color:#3c434a;text-decoration:none;font-size:1.3em}'
-            . '#login_error{background:#fcf0f1;border-left:4px solid #d63638;padding:10px 12px;margin-bottom:16px}'
-            . '.message{background:#f0f6fc;border-left:4px solid #72aee6;padding:10px 12px;margin-bottom:16px}'
+            . '#login h1 a{color:#393f47;text-decoration:none;font-size:1.3em}'
+            . '#login_error{background:#faeff0;border-left:4px solid #d1393c;padding:10px 12px;margin-bottom:16px}'
+            . '.message{background:#eef4fa;border-left:4px solid #6ba7e0;padding:10px 12px;margin-bottom:16px}'
             . '.login-username,.login-password{margin-bottom:14px}'
             . '#login label{display:block;margin-bottom:4px;font-size:.9em}'
-            . '#login .input{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #8c8f94;border-radius:3px}'
+            . '#login .input{width:100%;box-sizing:border-box;padding:6px 8px;border:1px solid #888b91;border-radius:3px}'
             . '.forgetmenot label{display:flex;align-items:center;gap:6px;font-size:.9em}'
-            . '.button-primary{background:#2271b1;color:#fff;border:1px solid #2271b1;border-radius:3px;'
+            . '.button-primary{background:#1f6caa;color:#fff;border:1px solid #1f6caa;border-radius:3px;'
             . 'padding:8px 14px;cursor:pointer}'
             . '#nav{text-align:center;margin-top:14px;font-size:.9em}'
-            . '#nav a{color:#2271b1;text-decoration:none}'
-            . '.footer{text-align:center;margin-top:16px;color:#646970;font-size:.85em}';
+            . '#nav a{color:#1f6caa;text-decoration:none}'
+            . '.footer{text-align:center;margin-top:16px;color:#60656c;font-size:.85em}';
     }
 }
