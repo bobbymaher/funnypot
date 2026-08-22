@@ -93,6 +93,16 @@ final class LlmPromptBuilderTest extends TestCase
         ];
     }
 
+    public function test_html_slots_prompt_requests_json_and_seeds_company(): void
+    {
+        $p = LlmPromptBuilder::forHtmlSlots('nginx', 'Velthora')->build('GET', '/hr/portal');
+        self::assertStringContainsString('JSON', $p);
+        self::assertStringContainsString('app_name', $p);
+        self::assertStringContainsString('Velthora', $p);
+        self::assertStringContainsString('APITOKEN', $p);         // marker convention documented
+        self::assertStringNotContainsString('<!doctype', $p);     // not asking for HTML anymore
+    }
+
     public function test_no_public_fingerprint_literals_in_any_prompt(): void
     {
         $banned = ['tok_9f3ac21e', 'ACME Portal', 'a.reyes', '9f3ac2'];
