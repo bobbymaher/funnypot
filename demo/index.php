@@ -27,6 +27,10 @@ use Funnypot\App\Llm\LlmResponseProfiles;
 use Funnypot\App\Llm\ProbeClassifier;
 use Funnypot\App\Llm\ProbeGate;
 use Funnypot\App\Llm\VelocityTracker;
+use Funnypot\App\Render\ArtifactVersion;
+use Funnypot\App\Render\GenericSkin;
+use Funnypot\App\Render\PageShellRenderer;
+use Funnypot\App\Render\SkinSet;
 use Funnypot\App\Storage\LlmFakeCache;
 use Funnypot\App\Storage\SqliteHitStore;
 use Funnypot\App\ThreatIntel\AbuseIpdb;
@@ -35,6 +39,7 @@ use Funnypot\App\ThreatIntel\Blocklist;
 use Funnypot\App\ThreatIntel\ThreatIntelReporter;
 use Funnypot\Honeytoken;
 use Funnypot\RequestContext;
+use Funnypot\Support\PersonaIdentity;
 
 $config = AppConfig::fromEnv(__DIR__);
 @mkdir(dirname($config->logPath), 0777, true);
@@ -81,6 +86,11 @@ $llmCache = new LlmFakeCache($config->llmCacheDb);
 $llmFakes = null;
 if ($config->llmEnabled) {
     $breaker = new CircuitBreaker($config->llmCacheDb, $config->llmBreakerThreshold, $config->llmBreakerCooldownS);
+    $skins = new SkinSet([], new GenericSkin());   // resemblance skins added in Phase 4
+    $renderer = new PageShellRenderer($skins);
+    $company = PersonaIdentity::fromSeed($config->personaSeed)->field('company.name') ?? 'Internal';
+    $pageSlotsGrammar = (string) @file_get_contents(dirname(__DIR__) . '/resources/llm/page-slots.gbnf');
+    $artifactVersion = ArtifactVersion::current(dirname(__DIR__) . '/resources/llm', dirname(__DIR__) . '/src/App/Render', $config->llmPromptVersion);
     $llmFakes = new LlmFakeResponder(
         new ProbeGate(
             new ProbeClassifier(),
@@ -96,9 +106,14 @@ if ($config->llmEnabled) {
             $config->poweredBy,
             (string) @file_get_contents(dirname(__DIR__) . '/resources/llm/html.gbnf'),
             (string) @file_get_contents(dirname(__DIR__) . '/resources/llm/json.gbnf'),
+            $renderer,
+            $pageSlotsGrammar,
+            $company,
         ),
         $config->llmPromptVersion,
         $config->llmMaxConcurrent,
+        $config->personaSeed,
+        $artifactVersion,
     );
 }
 
