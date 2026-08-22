@@ -10,11 +10,21 @@ use Funnypot\App\Render\VisualPersona;
 /**
  * A hand-authored lookalike of the phpMyAdmin query-results screen: a database/table tree down the
  * left, a top bar naming the server, and a results grid on the right. Structural resemblance only —
- * no upstream phpMyAdmin markup or CSS bytes are reproduced, and the "server version" is a made-up
- * literal, never a real product/version string that could itself become a fingerprintable tell.
+ * no upstream phpMyAdmin markup or CSS bytes are reproduced, and the "server version" is picked
+ * deterministically from a small plausible pool, keyed by the persona — a byte-identical version
+ * banner on every deployment would itself be a fleet-wide static tell.
  */
 final class PhpMyAdminSkin implements Skin
 {
+    /** Plausible MySQL/MariaDB version banners — never a copied real-world signature string. */
+    private const VERSION_POOL = [
+        '10.6.14-MariaDB-log',
+        '10.11.6-MariaDB',
+        '8.0.35-0ubuntu0.22.04.1',
+        '5.7.42-log',
+        '10.5.23-MariaDB-1:10.5.23+maria~ubu2004',
+    ];
+
     public function matches(string $path): bool
     {
         return str_contains($path, '/phpmyadmin') || str_contains($path, '/pma') || str_contains($path, '/PMA');
@@ -37,9 +47,9 @@ final class PhpMyAdminSkin implements Skin
             . '<style>' . $this->css() . '</style>'
             . '</head><body>';
 
-        // Version string is a fixed, made-up literal — never a real product/version banner.
+        $version = Esc::text($this->version($persona));
         $html .= '<div class="pma-topbar">phpMyAdmin &middot; Server: ' . $domain
-            . ' via TCP/IP &middot; Server version: 10.6.14-MariaDB-log</div>';
+            . ' via TCP/IP &middot; Server version: ' . $version . '</div>';
 
         $html .= '<div class="pma-shell">';
         $html .= $this->tree($db, $company);
@@ -64,6 +74,13 @@ final class PhpMyAdminSkin implements Skin
         $html .= '</body></html>';
 
         return $html;
+    }
+
+    /** Deterministic per-persona pick from VERSION_POOL — stable per host, varies across deployments. */
+    private function version(VisualPersona $persona): string
+    {
+        $idx = hexdec(substr(md5($persona->company() . '|' . $persona->domain()), 0, 8)) % count(self::VERSION_POOL);
+        return self::VERSION_POOL[$idx];
     }
 
     /** Turns a persona company name into a plausible lowercase db-name-shaped literal (display only). */
