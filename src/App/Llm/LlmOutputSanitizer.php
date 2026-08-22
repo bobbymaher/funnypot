@@ -57,30 +57,10 @@ final class LlmOutputSanitizer
     public function sanitize(string $raw, string $kind = 'html', int $maxBytes = 8192): ?string
     {
         $s = trim($raw);
-        $len = strlen($s);
-
-        // Realistic size band: reject a 12-byte stub and an oversized dump alike.
-        if ($len < 32 || $len > $maxBytes) {
-            return null;
-        }
-        if (!mb_check_encoding($s, 'UTF-8')) {
-            return null;
-        }
-        // No control bytes (a real response body has none); tab / newline / carriage-return allowed.
-        if (preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $s) === 1) {
+        if (!$this->prelude($s, $maxBytes)) {
             return null;
         }
         $low = strtolower($s);
-        foreach (self::BAD_SUBSTRINGS as $bad) {
-            if (strpos($low, $bad) !== false) {
-                return null;
-            }
-        }
-        foreach (self::META_DISCLOSURE as $tell) {
-            if (strpos($low, $tell) !== false) {
-                return null;
-            }
-        }
 
         switch ($kind) {
             case 'json':
@@ -97,6 +77,107 @@ final class LlmOutputSanitizer
             default:
                 return $this->sanitizeHtml($s, $low);
         }
+    }
+
+    /**
+     * Same shared prelude as sanitize(), then validates the body as slot-JSON and returns the
+     * DECODED array (not the string) — the render step consumes fields, not raw text. Used for the
+     * page-slots payload, where the caller needs typed access to each slot rather than a body to
+     * pass straight through.
+     *
+     * @return array<mixed>|null the decoded array, or null on any violation
+     */
+    public function sanitizeToArray(string $raw, int $maxBytes = 8192): ?array
+    {
+        $s = trim($raw);
+        if (!$this->prelude($s, $maxBytes)) {
+            return null;
+        }
+        // First non-whitespace byte must open an object/array (the grammar guarantees this; kept as
+        // a floor for a degraded/grammar-free fallback path).
+        $first = ltrim($s)[0] ?? '';
+        if ($first !== '{' && $first !== '[') {
+            return null;
+        }
+        $decoded = json_decode($s, true, 32);
+        if ($decoded === null && strtolower(trim($s)) !== 'null') {
+            return null;                                    // malformed / too deep
+        }
+        // Belt-and-braces recursion cap even though the grammar already bounds nesting.
+        if ($this->jsonTooDeep($decoded, 6) || $this->jsonHasBadValue($decoded)) {
+            return null;
+        }
+
+        return is_array($decoded) ? $decoded : null;
+    }
+
+    /**
+     * The whole-assembled-page pass. Slot values are validated individually, but the ASSEMBLED page
+     * must be re-checked as a whole: a disclosure word or active tag can arise purely from how
+     * trusted chrome concatenates with model-supplied slot text (a disclosure word split across
+     * adjacent cells, e.g., reads intact to a human even though no single slot contains it).
+     * Deliberately does NOT run the full HTML arm (sanitizeHtml) — the trusted page chrome
+     * legitimately uses <style>/<link> and relative URLs that sanitizeHtml would reject.
+     */
+    public function pageBodyOk(string $html): bool
+    {
+        $low = strtolower($html);
+        foreach (self::META_DISCLOSURE as $tell) {
+            if (strpos($low, $tell) !== false) {
+                return false;
+            }
+        }
+        if (strpos($low, '<script') !== false || strpos($low, '<iframe') !== false) {
+            return false;
+        }
+        if (preg_match('~[\s/]on[a-z]+\s*=~i', $html) === 1) {
+            return false;
+        }
+        // Re-scan the visible text with tags stripped and whitespace collapsed: a disclosure word
+        // can be split across cells (e.g. <td>honey</td><td>pot</td> reads as "honeypot" to a human
+        // even though it's absent from the raw markup).
+        $text = preg_replace('/<[^>]*>/', '', $html) ?? '';
+        $text = strtolower(preg_replace('/\s+/', ' ', $text) ?? '');
+        foreach (self::META_DISCLOSURE as $tell) {
+            if (strpos($text, $tell) !== false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** Shared validation run before any kind-specific check: realistic size band, valid UTF-8, no
+     *  control bytes, no exploit-code substrings, no self-disclosure. Used by both sanitize() and
+     *  sanitizeToArray() so the two paths can never drift out of sync. */
+    private function prelude(string $s, int $maxBytes): bool
+    {
+        $len = strlen($s);
+
+        // Realistic size band: reject a 12-byte stub and an oversized dump alike.
+        if ($len < 32 || $len > $maxBytes) {
+            return false;
+        }
+        if (!mb_check_encoding($s, 'UTF-8')) {
+            return false;
+        }
+        // No control bytes (a real response body has none); tab / newline / carriage-return allowed.
+        if (preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/', $s) === 1) {
+            return false;
+        }
+        $low = strtolower($s);
+        foreach (self::BAD_SUBSTRINGS as $bad) {
+            if (strpos($low, $bad) !== false) {
+                return false;
+            }
+        }
+        foreach (self::META_DISCLOSURE as $tell) {
+            if (strpos($low, $tell) !== false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function sanitizeHtml(string $s, string $low): ?string

@@ -161,4 +161,25 @@ final class LlmOutputSanitizerTest extends TestCase
             self::assertNull($s->sanitize($b, 'json'), "should reject: {$b}");
         }
     }
+
+    public function test_sanitize_to_array_returns_decoded_and_rejects_active_values(): void
+    {
+        $s = new LlmOutputSanitizer();
+        $ok = $s->sanitizeToArray('{"app_name":"Portal","heading":"Users","nav_items":["Home","Users"]}');
+        self::assertIsArray($ok);
+        self::assertSame('Portal', $ok['app_name']);
+        self::assertNull($s->sanitizeToArray('{"heading":"<img x onerror=alert(1)> padding padding padding here"}'));
+        self::assertNull($s->sanitizeToArray('not json at all but long enough to clear the size band easily'));
+    }
+
+    public function test_page_body_ok_allows_trusted_chrome_but_blocks_disclosure_and_script(): void
+    {
+        $s = new LlmOutputSanitizer();
+        $good = '<!doctype html><html><head><style>.a{color:#111}</style></head><body>'
+            . '<h1>Users</h1><a href="/admin">Home</a></body></html>';
+        self::assertTrue($s->pageBodyOk($good));                                   // <style> + relative href OK
+        self::assertFalse($s->pageBodyOk($good . '<script>x()</script>'));         // active content
+        self::assertFalse($s->pageBodyOk('<html><body>this is a honeypot page</body></html>')); // disclosure
+        self::assertFalse($s->pageBodyOk('<html><body><td>honey</td><td>pot</td></body></html>')); // split disclosure
+    }
 }
