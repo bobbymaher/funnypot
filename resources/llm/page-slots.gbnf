@@ -1,0 +1,22 @@
+# Schema-locked slot grammar for the honeypot HTML page shell. The model fills page content only —
+# never markup. Literal key names + typed values make empty/mistyped slots structurally impossible.
+# Keeps json.gbnf's <>-excluding charset as the primary anti-HTML-injection guard. Strict-parser
+# rules: single-line alternations; a literal '-' sits at the END of a char class. Validate LIVE
+# against llama-server before shipping.
+root       ::= ws "{" ws pair (ws "," ws pair){0,9} ws "}" ws
+pair       ::= appkey | titlekey | headkey | introkey | navkey | tablekey | formkey | flashkey | footkey
+appkey     ::= "\"" "app_name" "\"" ws ":" ws string
+titlekey   ::= "\"" "page_title" "\"" ws ":" ws string
+headkey    ::= "\"" "heading" "\"" ws ":" ws string
+introkey   ::= "\"" "intro" "\"" ws ":" ws string
+navkey     ::= "\"" "nav_items" "\"" ws ":" ws strarr
+formkey    ::= "\"" "form_fields" "\"" ws ":" ws strarr
+flashkey   ::= "\"" "flash" "\"" ws ":" ws string
+footkey    ::= "\"" "footer_note" "\"" ws ":" ws string
+tablekey   ::= "\"" "table" "\"" ws ":" ws "{" ws "\"" "cols" "\"" ws ":" ws strarr ws "," ws "\"" "rows" "\"" ws ":" ws rows ws "}"
+rows       ::= "[" ws (row (ws "," ws row){0,2})? ws "]"
+row        ::= strarr
+strarr     ::= "[" ws (string (ws "," ws string){0,4})? ws "]"
+string     ::= "\"" schar{0,80} "\""
+schar      ::= [a-zA-Z0-9 _./?=&:#;%()',+-]
+ws         ::= [ \t\n]{0,2}
