@@ -59,4 +59,13 @@ final class VisualPersona
     {
         return 'tok_' . substr(hash('sha256', $this->seed . '|token|' . $salt), 0, 12);
     }
+
+    public function awsKey(): string
+    {
+        $key = $this->identity->field('cloud.aws.accessKeyId');
+        if ($key !== null) {
+            return $key;
+        }
+        return 'AKIA' . strtoupper(substr(hash('sha256', $this->seed . '|awskey|'), 0, 16));
+    }
 }
