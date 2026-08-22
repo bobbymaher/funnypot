@@ -292,6 +292,8 @@ final class LlmOutputSanitizer
 
     /** Recursively reject a string value that reads as a script tag, an active-content scheme, or an
      *  absolute URL — inert as JSON, but a plausibility/safety tell if the value is templated onward.
+     *  Also mirrors the HTML arm's ban set (bad tags, event handlers, meta http-equiv) as defense-in-depth
+     *  since the slot-JSON will be rendered into HTML.
      *  @param mixed $v */
     private function jsonHasBadValue($v): bool
     {
@@ -300,8 +302,23 @@ final class LlmOutputSanitizer
             if (strpos($l, '<script') !== false || preg_match('~(?:javascript|vbscript|data)\s*:~i', $v) === 1) {
                 return true;
             }
+            if (preg_match('~(?:https?\s*:)?//~i', $v) === 1) {
+                return true;
+            }
+            // Mirror the HTML arm's tag/handler/meta bans as defense-in-depth.
+            foreach (self::BAD_TAGS as $tag) {
+                if (strpos($l, $tag) !== false) {
+                    return true;
+                }
+            }
+            if (preg_match('~[\s/]on[a-z]+\s*=~i', $v) === 1) {
+                return true;
+            }
+            if (preg_match('~<meta\b[^>]*http-equiv~i', $v) === 1) {
+                return true;
+            }
 
-            return preg_match('~(?:https?\s*:)?//~i', $v) === 1;
+            return false;
         }
         if (is_array($v)) {
             foreach ($v as $child) {

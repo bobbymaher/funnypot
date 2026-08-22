@@ -148,4 +148,17 @@ final class LlmOutputSanitizerTest extends TestCase
         self::assertNull($this->s->sanitize("<html>this is not plaintext, padded out to the min length</html>", 'text'));
         self::assertNull($this->s->sanitize("Sorry, I cannot help with that request. Here is nothing useful.", 'text'));
     }
+
+    public function test_json_rejects_active_html_in_values(): void
+    {
+        $s = new LlmOutputSanitizer();
+        $bads = [
+            '{"a":"<iframe src=/x>padding to reach the min length band here now"}',
+            '{"a":"<img x onerror=alert(1)> padding to reach the minimum length band"}',
+            '{"a":"<style>body{} padding to reach the minimum length band here now ok"}',
+        ];
+        foreach ($bads as $b) {
+            self::assertNull($s->sanitize($b, 'json'), "should reject: {$b}");
+        }
+    }
 }
