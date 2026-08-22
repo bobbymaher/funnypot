@@ -30,6 +30,10 @@ use Funnypot\App\Llm\VelocityTracker;
 use Funnypot\App\Render\ArtifactVersion;
 use Funnypot\App\Render\GenericSkin;
 use Funnypot\App\Render\PageShellRenderer;
+use Funnypot\App\Render\Skins\AdminLteSkin;
+use Funnypot\App\Render\Skins\GrafanaSkin;
+use Funnypot\App\Render\Skins\PhpMyAdminSkin;
+use Funnypot\App\Render\Skins\WordpressSkin;
 use Funnypot\App\Render\SkinSet;
 use Funnypot\App\Storage\LlmFakeCache;
 use Funnypot\App\Storage\SqliteHitStore;
@@ -86,7 +90,12 @@ $llmCache = new LlmFakeCache($config->llmCacheDb);
 $llmFakes = null;
 if ($config->llmEnabled) {
     $breaker = new CircuitBreaker($config->llmCacheDb, $config->llmBreakerThreshold, $config->llmBreakerCooldownS);
-    $skins = new SkinSet([], new GenericSkin());   // resemblance skins added in Phase 4
+    // Priority order: WordPress, phpMyAdmin, Grafana, then AdminLTE last — its broad /admin match
+    // would otherwise shadow the more specific product analogs above it.
+    $skins = new SkinSet(
+        [new WordpressSkin(), new PhpMyAdminSkin(), new GrafanaSkin(), new AdminLteSkin()],
+        new GenericSkin()
+    );
     $renderer = new PageShellRenderer($skins);
     $company = PersonaIdentity::fromSeed($config->personaSeed)->field('company.name') ?? 'Internal';
     $pageSlotsGrammar = (string) @file_get_contents(dirname(__DIR__) . '/resources/llm/page-slots.gbnf');
