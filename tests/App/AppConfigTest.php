@@ -103,4 +103,12 @@ final class AppConfigTest extends TestCase
             putenv($k);
         }
     }
+
+    public function test_persona_seed_is_stable_and_derived(): void
+    {
+        putenv('FUNNYPOT_PERSONA_SEED=my-host');
+        $c = AppConfig::fromEnv(sys_get_temp_dir());
+        self::assertSame((int) crc32('my-host'), $c->personaSeed);
+        putenv('FUNNYPOT_PERSONA_SEED');
+    }
 }

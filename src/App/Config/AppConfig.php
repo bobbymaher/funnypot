@@ -72,6 +72,8 @@ final class AppConfig
         public int $llmVelocityPer10m,
         /** IPs/CIDRs exempt from the LLM velocity gate — operator test IPs generate unlimited fakes. */
         public array $llmGateAllowIps,
+        /** Seeds persona/skin selection; per-deployment and stable — never clientIp or time. */
+        public int $personaSeed,
     ) {
     }
 
@@ -142,6 +144,7 @@ final class AppConfig
             llmVelocityPer60s: max(1, (int) $str('FUNNYPOT_LLM_VELOCITY_PER_60S', '5')),
             llmVelocityPer10m: max(1, (int) $str('FUNNYPOT_LLM_VELOCITY_PER_10M', '15')),
             llmGateAllowIps: array_values(array_filter(array_map('trim', explode(',', $str('FUNNYPOT_LLM_GATE_ALLOW', ''))))),
+            personaSeed: (int) crc32($str('FUNNYPOT_PERSONA_SEED', $str('FUNNYPOT_LE_DOMAIN', 'funnypot'))),
         );
     }
 }
