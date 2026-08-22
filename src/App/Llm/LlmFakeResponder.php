@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Funnypot\App\Llm;
 
+use Funnypot\App\Render\PageSlots;
+use Funnypot\App\Render\VisualPersona;
 use Funnypot\App\Storage\HitStore;
 use Funnypot\App\Storage\LlmFakeCache;
 use Funnypot\Detection;
@@ -31,6 +33,8 @@ final class LlmFakeResponder
         private LlmResponseProfiles $profiles,
         private string $promptVersion = 'v1',
         private int $maxConcurrent = 4,
+        private int $personaSeed = 0,
+        private string $htmlArtifactVersion = '',
     ) {
     }
 
@@ -64,10 +68,16 @@ final class LlmFakeResponder
         // The extension decides the fake's shape (Content-Type, prompt, grammar, sanitizer rules): a
         // .js gets JavaScript, a .json gets JSON, an .env plaintext — not an HTML page every time.
         $profile = $this->profiles->resolve($context->path);
+        // The rendered-page path caches under the artifact version (the renderer's own output
+        // format), not the prompt version, so a shell/skin change invalidates without needing a new
+        // prompt. Resolved once so get/awaitOther/put below all agree on the same cache key.
+        $version = ($profile->renderer !== null && $this->htmlArtifactVersion !== '')
+            ? $this->htmlArtifactVersion
+            : $this->promptVersion;
 
         // 1. Cache hit — the common case, served byte-identical, no model call, no gate query. The
         //    stored Content-Type is authoritative (a path's kind is fixed), so serve it, not a guess.
-        $hit = $this->cache->get($key, $this->promptVersion);
+        $hit = $this->cache->get($key, $version);
         if ($hit !== null) {
             return $this->build($hit['status'], $hit['content_type'], $hit['body']);
         }
@@ -86,7 +96,7 @@ final class LlmFakeResponder
             return null;
         }
         if ($lock === LlmFakeCache::ACQUIRE_BUSY) {
-            $peer = $this->cache->awaitOther($key, $this->promptVersion);
+            $peer = $this->cache->awaitOther($key, $version);
 
             return $peer !== null ? $this->build($peer['status'], $peer['content_type'], $peer['body']) : null;
         }
@@ -96,12 +106,31 @@ final class LlmFakeResponder
             if ($raw === null) {
                 return null;                                  // failure is never cached
             }
-            $body = $this->sanitizer->sanitize($raw, $profile->kind);
-            if ($body === null) {
-                return null;
+            if ($profile->renderer !== null) {
+                // Slot-based path: the model supplies typed field values (not markup), the trusted
+                // skin assembles the page. Validate the decoded slots, render, then re-validate the
+                // WHOLE assembled page — chrome + model text can combine into something neither half
+                // was individually.
+                $decoded = $this->sanitizer->sanitizeToArray($raw);
+                if ($decoded === null) {
+                    return null;
+                }
+                $body = $profile->renderer->render(
+                    PageSlots::fromArray($decoded),
+                    VisualPersona::fromSeed($this->personaSeed),
+                    $context
+                );
+                if (!$this->sanitizer->pageBodyOk($body)) {
+                    return null;
+                }
+            } else {
+                $body = $this->sanitizer->sanitize($raw, $profile->kind);
+                if ($body === null) {
+                    return null;
+                }
             }
             $status = $this->chooseStatus($context->path);
-            $this->cache->put($key, $status, $profile->contentType, $body, $this->promptVersion);
+            $this->cache->put($key, $status, $profile->contentType, $body, $version);
 
             return $this->build($status, $profile->contentType, $body);
         } finally {

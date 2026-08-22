@@ -191,4 +191,29 @@ final class LlmFakeResponderTest extends TestCase
         [$r] = $this->make(fn (): array => ['status' => 200, 'body' => json_encode(['content' => $badJs])]);
         self::assertNull($r->respond(new RequestContext('GET', '/static/js/app.js'), '9.9.9.9'));
     }
+
+    public function test_renderer_profile_turns_slot_json_into_a_styled_page(): void
+    {
+        $slots = json_encode(['content' => '{"app_name":"HR Portal","heading":"Users","table":{"cols":["User","Token"],"rows":[["m.hale","APITOKEN"]]}}']);
+        $renderer = new \Funnypot\App\Render\PageShellRenderer(
+            new \Funnypot\App\Render\SkinSet([], new \Funnypot\App\Render\GenericSkin())
+        );
+        $store = new SqliteHitStore($this->dbPath('hits'));
+        $r = new LlmFakeResponder(
+            new ProbeGate(new ProbeClassifier(), new VelocityTracker(), $store),
+            new LlmFakeCache($this->dbPath('cache')),
+            new LlmClient('http://sidecar/completion', 1500, 320, null, fn (): array => ['status' => 200, 'body' => $slots]),
+            new LlmOutputSanitizer(),
+            $store,
+            new LlmResponseProfiles('nginx', 'root ::= "<"', 'root ::= "{"', $renderer, 'root ::= "{"', 'Velthora'),
+            'v1', 4, 12345, 'art1',
+        );
+        $resp = $r->respond(new RequestContext('GET', '/admin/settings.php'), '9.9.9.9');
+        self::assertNotNull($resp);
+        self::assertSame('text/html; charset=utf-8', $resp->headers['Content-Type']);
+        self::assertStringStartsWith('<!doctype html>', $resp->body);
+        self::assertStringContainsString('<style>', $resp->body);
+        self::assertStringContainsString('HR Portal', $resp->body);
+        self::assertStringNotContainsString('APITOKEN', $resp->body);   // marker substituted
+    }
 }
