@@ -9,6 +9,10 @@ namespace Funnypot\App\Render;
  */
 final class PageSlots
 {
+    /** Placeholders the model may emit instead of a real secret; resolved to a persona-coherent fake
+     *  before any skin renders — the model never invents the actual value. */
+    public const MARKERS = ['APITOKEN', 'EMAIL', 'AWSKEY'];
+
     private function __construct(
         private string $appName,
         private string $pageTitle,
@@ -55,6 +59,66 @@ final class PageSlots
     {
         return $this->intro !== '' || $this->navItems !== [] || $this->tableRows !== []
             || $this->formFields !== [];
+    }
+
+    /**
+     * Resolves every model string slot in place, once, before any skin renders — so a marker like
+     * APITOKEN never leaks as a literal word into whichever skin happens to handle a given path.
+     * tableCols is left untouched: those are model-chosen header labels, never a secret slot.
+     */
+    public function resolveMarkers(VisualPersona $persona): self
+    {
+        return new self(
+            self::mark($this->appName, $persona, 'appName'),
+            self::mark($this->pageTitle, $persona, 'pageTitle'),
+            self::mark($this->heading, $persona, 'h'),
+            self::mark($this->intro, $persona, 'intro'),
+            self::markList($this->navItems, $persona, 'nav'),
+            $this->tableCols,
+            self::markRows($this->tableRows, $persona),
+            self::markList($this->formFields, $persona, 'f'),
+            self::mark($this->flash, $persona, 'flash'),
+            self::mark($this->footerNote, $persona, 'footerNote'),
+        );
+    }
+
+    /** A value equal (after trim) to a MARKERS entry becomes a persona-coherent fake; anything else
+     *  passes through unchanged. $salt keeps distinct slots/cells from resolving to the same fake. */
+    private static function mark(string $v, VisualPersona $persona, string $salt): string
+    {
+        $trimmed = trim($v);
+        if (!in_array($trimmed, self::MARKERS, true)) {
+            return $v;
+        }
+        return match ($trimmed) {
+            'APITOKEN' => $persona->fakeToken($salt),
+            'EMAIL' => $persona->adminEmail(),
+            'AWSKEY' => $persona->awsKey(),
+        };
+    }
+
+    /** @param list<string> $items @return list<string> */
+    private static function markList(array $items, VisualPersona $persona, string $prefix): array
+    {
+        $out = [];
+        foreach ($items as $i => $item) {
+            $out[] = self::mark($item, $persona, "{$prefix}{$i}");
+        }
+        return $out;
+    }
+
+    /** @param list<list<string>> $rows @return list<list<string>> */
+    private static function markRows(array $rows, VisualPersona $persona): array
+    {
+        $out = [];
+        foreach ($rows as $r => $row) {
+            $newRow = [];
+            foreach ($row as $c => $cell) {
+                $newRow[] = self::mark($cell, $persona, "r{$r}c{$c}");
+            }
+            $out[] = $newRow;
+        }
+        return $out;
     }
 
     /** @param array<mixed> $d */

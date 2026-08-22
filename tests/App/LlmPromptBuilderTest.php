@@ -111,6 +111,7 @@ final class LlmPromptBuilderTest extends TestCase
             LlmPromptBuilder::forJson('nginx'),
             LlmPromptBuilder::forJs('nginx'),
             LlmPromptBuilder::forPlaintext('nginx'),
+            LlmPromptBuilder::forHtmlSlots('nginx', 'Velthora'),
         ];
         foreach ($builders as $b) {
             $prompt = $b->build('GET', '/x');

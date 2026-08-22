@@ -10,10 +10,6 @@ namespace Funnypot\App\Render;
  */
 final class GenericSkin implements Skin
 {
-    /** Table-cell placeholders the model may emit instead of a real secret; resolved to a
-     *  persona-coherent fake before escaping — the model never invents the actual value. */
-    public const MARKERS = ['APITOKEN', 'EMAIL', 'AWSKEY'];
-
     public function matches(string $path): bool
     {
         return true;
@@ -50,7 +46,7 @@ final class GenericSkin implements Skin
         $html .= '<main class="' . $p . '-box">';
         $html .= $this->heading($slots->heading());
         $html .= $this->intro($p, $slots->intro());
-        $html .= $this->table($p, $slots->tableCols(), $slots->tableRows(), $persona);
+        $html .= $this->table($p, $slots->tableCols(), $slots->tableRows());
         $html .= $this->form($p, $slots->formFields(), $escapedPath);
         $html .= $this->flash($p, $slots->flash());
         $html .= '</main>';
@@ -112,7 +108,7 @@ final class GenericSkin implements Skin
      * @param list<string> $cols
      * @param list<list<string>> $rows
      */
-    private function table(string $p, array $cols, array $rows, VisualPersona $persona): string
+    private function table(string $p, array $cols, array $rows): string
     {
         if ($cols === [] && $rows === []) {
             return '';
@@ -126,28 +122,14 @@ final class GenericSkin implements Skin
             $html .= '</tr></thead>';
         }
         $html .= '<tbody>';
-        foreach ($rows as $i => $row) {
+        foreach ($rows as $row) {
             $html .= '<tr>';
-            foreach ($row as $j => $cell) {
-                $html .= '<td>' . Esc::text($this->resolveMarker($cell, $persona, $i, $j)) . '</td>';
+            foreach ($row as $cell) {
+                $html .= '<td>' . Esc::text($cell) . '</td>';
             }
             $html .= '</tr>';
         }
         return $html . '</tbody></table>';
-    }
-
-    /** A cell equal (after trim) to a MARKERS entry becomes a persona-coherent fake; anything else passes through untouched — escaping still happens afterward, by the caller. */
-    private function resolveMarker(string $cell, VisualPersona $persona, int $i, int $j): string
-    {
-        $trimmed = trim($cell);
-        if (!in_array($trimmed, self::MARKERS, true)) {
-            return $cell;
-        }
-        return match ($trimmed) {
-            'APITOKEN' => $persona->fakeToken("r{$i}c{$j}"),
-            'EMAIL' => $persona->adminEmail(),
-            'AWSKEY' => $persona->awsKey(),
-        };
     }
 
     /** @param list<string> $fields */

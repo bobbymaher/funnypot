@@ -2,8 +2,11 @@
 declare(strict_types=1);
 namespace Funnypot\Tests\App;
 use Funnypot\App\Render\GenericSkin;
+use Funnypot\App\Render\PageShellRenderer;
 use Funnypot\App\Render\PageSlots;
+use Funnypot\App\Render\SkinSet;
 use Funnypot\App\Render\VisualPersona;
+use Funnypot\RequestContext;
 use PHPUnit\Framework\TestCase;
 
 final class GenericSkinTest extends TestCase
@@ -29,9 +32,16 @@ final class GenericSkinTest extends TestCase
         self::assertStringContainsString('&lt;img', $html);
     }
 
+    /** Marker resolution now happens once, upstream, in PageShellRenderer — not in any individual
+     *  skin — so this is tested through the shell rather than by calling GenericSkin directly. */
     public function test_marker_cells_become_persona_fakes(): void
     {
-        $html = $this->render(['table' => ['cols' => ['User','Token'], 'rows' => [['m.hale','APITOKEN']]]]);
+        $renderer = new PageShellRenderer(new SkinSet([], new GenericSkin()));
+        $html = $renderer->render(
+            PageSlots::fromArray(['table' => ['cols' => ['User', 'Token'], 'rows' => [['m.hale', 'APITOKEN']]]]),
+            VisualPersona::fromSeed(5),
+            new RequestContext('GET', '/hr/portal')
+        );
         self::assertStringNotContainsString('APITOKEN', $html);
         self::assertMatchesRegularExpression('/tok_[0-9a-f]{12}/', $html);
     }
